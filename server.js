@@ -346,5 +346,5 @@ app.get('/leave/applications', ensureAuth, (req, res) => {
   } else if (req.user.role === 'General Employee') list = list.filter(a => a.employeeId === req.user.employeeId);
   res.render('leave/applications', { list, currentPath: '/leave/applications', pageTitle: 'Leave Applications' });
 });
-
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 app.listen(PORT, () => { console.log(`✅ Server running: http://localhost:${PORT}`); });
