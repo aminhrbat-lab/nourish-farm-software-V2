@@ -11,7 +11,7 @@ const cookieParser = require('cookie-parser');
 const expressLayouts = require('express-ejs-layouts');
 
 const app = express();
-const PORT = 3000;
+const port = process.env.SERVER_PORT || 3000;
 const JWT_SECRET = 'nourish_super_secret_key_2026';
 
 app.use(bodyParser.urlencoded({ extended: true }));
