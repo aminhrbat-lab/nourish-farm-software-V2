@@ -24,22 +24,92 @@
           <b>Designation:</b> <%= e.designation %> | <b>Dept:</b> <%= e.department %> | <b>Farm:</b> <%= e.farmName %> (<%= e.farmCC %>)
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
           <div>
             <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Current Status</label>
-            <select name="currentStatus" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;">
+            <select name="currentStatus" id="status_<%= e._id %>" onchange="toggleStatusFields('<%= e._id %>')" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;">
               <option value="Active" <%= e.currentStatus==='Active'?'selected':'' %>>Active</option>
               <option value="Inactive" <%= e.currentStatus==='Inactive'?'selected':'' %>>Inactive</option>
               <option value="Absent" <%= e.currentStatus==='Absent'?'selected':'' %>>Absent</option>
               <option value="Transfer" <%= e.currentStatus==='Transfer'?'selected':'' %>>Transfer</option>
             </select>
           </div>
-          
-          <div style="display: flex; align-items: flex-end;">
-            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">Save Changes</button>
+
+          <!-- Inactive Date Field -->
+          <div id="inactive_box_<%= e._id %>" class="status-box" style="display: none;">
+            <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Inactive Date</label>
+            <input type="date" name="inactiveDate" value="<%= e.inactiveDate || '' %>" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;" />
+          </div>
+
+          <!-- Absent Date Fields -->
+          <div id="absent_box_<%= e._id %>" class="status-box" style="display: none;">
+            <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Absent From Date</label>
+            <input type="date" name="absentFrom" value="<%= e.absentFrom || '' %>" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px;" />
+            <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Absent To Date</label>
+            <input type="date" name="absentTo" value="<%= e.absentTo && e.absentTo !== 'Till Now' ? e.absentTo : '' %>" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px;" />
+            <label style="font-size: 14px; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" name="absentTillNow" <%= e.absentTillNow ? 'checked' : '' %> /> Till Now
+            </label>
+          </div>
+
+          <!-- Transfer Fields -->
+          <div id="transfer_box_<%= e._id %>" class="status-box" style="display: none; border-top: 1px dashed var(--border); padding-top: 15px; margin-top: 10px;">
+            <h4 style="margin-bottom: 10px; font-size: 14px; color: var(--primary);">Transfer Details</h4>
+            <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Effective Date</label>
+            <input type="date" name="transferDate" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px;" />
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">New Farm Name</label>
+                <input type="text" name="transferFarmName" placeholder="New Farm Name" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;" />
+              </div>
+              <div>
+                <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">New Farm CC</label>
+                <input type="text" name="transferFarmCC" placeholder="New Farm CC" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;" />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+              <div>
+                <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">New Designation</label>
+                <input type="text" name="transferDesignation" placeholder="New Designation" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;" />
+              </div>
+              <div>
+                <label style="font-size: 13px; font-weight: 600; color: var(--text-muted);">New Department</label>
+                <input type="text" name="transferDepartment" placeholder="New Department" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px;" />
+              </div>
+            </div>
           </div>
         </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 15px; width: 100%; justify-content: center; padding: 12px;">Save Changes</button>
       </form>
     </div>
   <% }); %>
 </div>
+
+<script>
+  function toggleStatusFields(id) {
+    const status = document.getElementById('status_' + id).value;
+    const inactiveBox = document.getElementById('inactive_box_' + id);
+    const absentBox = document.getElementById('absent_box_' + id);
+    const transferBox = document.getElementById('transfer_box_' + id);
+
+    // Shob hide koro
+    inactiveBox.style.display = 'none';
+    absentBox.style.display = 'none';
+    transferBox.style.display = 'none';
+
+    // Select onujayi show koro
+    if (status === 'Inactive') inactiveBox.style.display = 'block';
+    if (status === 'Absent') absentBox.style.display = 'block';
+    if (status === 'Transfer') transferBox.style.display = 'block';
+  }
+
+  // Page load howar somoy current status onujayi box show koro
+  window.onload = function() {
+    <% results.forEach(e => { %>
+      toggleStatusFields('<%= e._id %>');
+    <% }); %>
+  };
+</script>
