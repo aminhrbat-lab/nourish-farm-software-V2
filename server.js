@@ -295,6 +295,10 @@ app.get('/leave/dashboard', ensureAuth, (req, res) => {
   res.render('leave/dashboard', { activeEmployees, totalApps, submittedApps, totalDeducted, year, currentPath: '/leave/dashboard', pageTitle: 'Leave Dashboard' });
 });
 
+app.get('/leave/policy', ensureAuth, (req, res) => { 
+  res.render('leave/policy', { currentPath: '/leave/policy', pageTitle: 'Leave Policy' }); 
+});
+
 app.get('/leave/history', ensureAuth, (req, res) => {
   const q = (req.query.q || '').toString().trim(); const db = loadDB(); const leaveDb = loadLeaveDB();
   const year = req.query.year || new Date().getFullYear().toString();
@@ -346,5 +350,153 @@ app.get('/leave/applications', ensureAuth, (req, res) => {
   } else if (req.user.role === 'General Employee') list = list.filter(a => a.employeeId === req.user.employeeId);
   res.render('leave/applications', { list, currentPath: '/leave/applications', pageTitle: 'Leave Applications' });
 });
+
+// ==========================================
+// ৪. LEAVE PDF DOWNLOAD (NOTUN ADD KORA)
+// ==========================================
+app.get('/leave/download/:id', ensureAuth, (req, res) => {
+  const leaveDb = loadLeaveDB(); const appLeave = leaveDb.find(a => a._id === req.params.id);
+  if (!appLeave) return res.send("Application not found");
+
+  const db = loadDB();
+  const emp = db.find(e => e.employeeId === appLeave.employeeId);
+  
+  if (req.user.role === 'Farm Incharge' || req.user.role === 'Farm Store Incharge') {
+    if (!emp || String(emp.farmCC) !== String(req.user.farmCC)) return res.status(403).send("Access Denied");
+  } else if (req.user.role === 'General Employee') {
+    if (appLeave.employeeId !== req.user.employeeId) return res.status(403).send("Access Denied");
+  }
+
+  const doc = new PDFDocument({ size: 'A4', margin: 40 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="Leave_Application_${appLeave._id}.pdf"`);
+  doc.pipe(res);
+
+  const logoPath = path.join(__dirname, 'public', 'logo.png');
+  if (fs.existsSync(logoPath)) { doc.image(logoPath, 237.5, 40, { width: 120, align: 'center' }); doc.moveDown(5); }
+
+  doc.fontSize(14).font('Helvetica-Bold').fillColor('#1a5276').text('NOURISH POULTRY AND HATCHERY LIMITED', { align: 'center' });
+  doc.fontSize(10).font('Helvetica').fillColor('#000000').text('EMPLOYEE LEAVE APPLICATION FORM', { align: 'center' });
+  doc.moveDown(1.5);
+
+  doc.text(`Application Date: ${new Date(appLeave.applicationDate).toLocaleDateString('en-GB')}`, 40, doc.y, { align: 'left' });
+  doc.text(`Farm / Location: ${emp ? emp.farmName : 'N/A'}`, { align: 'right' });
+  doc.moveDown(1.5);
+
+  doc.font('Helvetica-Bold').fontSize(11).text('1. EMPLOYEE INFORMATION');
+  doc.moveDown(0.5);
+  
+  const empStartY = doc.y;
+  const c1_w = 257;
+  const rowH = 25;
+  const tableStartX = 40;
+
+  doc.rect(tableStartX, empStartY, c1_w, rowH).stroke();
+  doc.rect(tableStartX + c1_w, empStartY, c1_w, rowH).stroke();
+  doc.font('Helvetica-Bold').text('Employee ID', tableStartX + 5, empStartY + 8);
+  doc.font('Helvetica').text(appLeave.employeeId || 'Pending', tableStartX + 100, empStartY + 8);
+  doc.font('Helvetica-Bold').text('Employee Name', tableStartX + c1_w + 5, empStartY + 8);
+  doc.font('Helvetica').text(appLeave.employeeName, tableStartX + c1_w + 100, empStartY + 8);
+
+  doc.rect(tableStartX, empStartY + rowH, c1_w, rowH).stroke();
+  doc.rect(tableStartX + c1_w, empStartY + rowH, c1_w, rowH).stroke();
+  doc.font('Helvetica-Bold').text('Designation', tableStartX + 5, empStartY + rowH + 8);
+  doc.font('Helvetica').text(emp ? emp.designation : 'N/A', tableStartX + 100, empStartY + rowH + 8);
+  doc.font('Helvetica-Bold').text('Department', tableStartX + c1_w + 5, empStartY + rowH + 8);
+  doc.font('Helvetica').text(emp ? emp.department : 'N/A', tableStartX + c1_w + 100, empStartY + rowH + 8);
+
+  doc.y = empStartY + rowH * 2 + 15;
+  doc.font('Helvetica-Bold').fontSize(11).text('2. LEAVE INFORMATION');
+  doc.moveDown(0.5);
+  doc.font('Helvetica-Bold').text('Leave Type (Tick ✓ One):');
+  doc.moveDown(0.5);
+  
+  const leaveTypesList = ['Project Casual Leave', 'Casual Leave', 'Medical Leave', 'Marriage Leave', 'Paternity Leave', 'Hajj Leave', 'Omrah Leave', 'Bereavement Leave', 'Earn Leave'];
+  let chkX = 40; let chkY = doc.y;
+  leaveTypesList.forEach((type, index) => {
+    if (index > 0 && index % 3 === 0) { chkX = 40; chkY += 20; }
+    const isChecked = appLeave.leaveType === type;
+    doc.font(isChecked ? 'Helvetica-Bold' : 'Helvetica').text(`${isChecked ? '☑' : '☐'} ${type}`, chkX, chkY);
+    chkX += 180;
+  });
+  
+  doc.y = chkY + 25;
+  const dateTableY = doc.y;
+  const w1 = 150, w2 = 180, w3 = 185;
+  const c2X = tableStartX + w1;
+  const c3X = c2X + w2;
+
+  doc.rect(tableStartX, dateTableY, w1, rowH).stroke();
+  doc.rect(c2X, dateTableY, w2, rowH).stroke();
+  doc.rect(c3X, dateTableY, w3, rowH).stroke();
+  doc.font('Helvetica-Bold').text('Leave From', tableStartX + 5, dateTableY + 8);
+  doc.text('Leave To', c2X + 5, dateTableY + 8);
+  doc.text('Total Leave Days', c3X + 5, dateTableY + 8);
+
+  doc.rect(tableStartX, dateTableY + rowH, w1, rowH).stroke();
+  doc.rect(c2X, dateTableY + rowH, w2, rowH).stroke();
+  doc.rect(c3X, dateTableY + rowH, w3, rowH).stroke();
+  doc.font('Helvetica').text(new Date(appLeave.fromDate).toLocaleDateString('en-GB'), tableStartX + 5, dateTableY + rowH + 8);
+  doc.text(new Date(appLeave.toDate).toLocaleDateString('en-GB'), c2X + 5, dateTableY + rowH + 8);
+  doc.text(appLeave.totalDays.toString(), c3X + 5, dateTableY + rowH + 8);
+
+  doc.y = dateTableY + rowH * 2 + 15;
+  doc.font('Helvetica-Bold').fontSize(11).text('3. DETAILS / REASON FOR LEAVE');
+  doc.moveDown(0.5);
+  const reasonY = doc.y;
+  doc.rect(tableStartX, reasonY, 515, 40).stroke();
+  doc.font('Helvetica').text(appLeave.reason || 'N/A', tableStartX + 5, reasonY + 8, { width: 505 });
+  doc.y = reasonY + 50;
+
+  doc.font('Helvetica-Bold').fontSize(11).text('4. REMAINING LEAVE BALANCE');
+  doc.moveDown(0.5);
+  const balTableY = doc.y;
+  doc.rect(tableStartX, balTableY, 300, rowH).fillAndStroke('#f0f0f0', '#000');
+  doc.rect(tableStartX + 300, balTableY, 215, rowH).fillAndStroke('#f0f0f0', '#000');
+  doc.fillColor('#000000').font('Helvetica-Bold').text('Particulars', tableStartX + 5, balTableY + 8);
+  doc.text('Days', tableStartX + 305, balTableY + 8);
+
+  const balRows = [
+    ['Existing Leave Balance Before Application', appLeave.balanceBefore],
+    ['Newly Requested Leave', appLeave.totalDays],
+    ['Remaining Balance After Submission', appLeave.balanceAfter]
+  ];
+
+  let bY = balTableY + rowH;
+  balRows.forEach(row => {
+    doc.rect(tableStartX, bY, 300, rowH).stroke();
+    doc.rect(tableStartX + 300, bY, 215, rowH).stroke();
+    doc.font('Helvetica').text(row[0], tableStartX + 5, bY + 8);
+    doc.text(row[1].toString(), tableStartX + 305, bY + 8);
+    bY += rowH;
+  });
+
+  doc.y = bY + 15;
+  doc.font('Helvetica-Bold').fontSize(11).text('5. SIGNATURE & APPROVAL');
+  doc.moveDown(0.5);
+  
+  const sigY = doc.y;
+  const sW = 171;
+  doc.rect(tableStartX, sigY, sW, 60).stroke();
+  doc.rect(tableStartX + sW, sigY, sW, 60).stroke();
+  doc.rect(tableStartX + sW * 2, sigY, sW, 60).stroke();
+  
+  doc.font('Helvetica-Bold').text('Employee Signature', tableStartX + 5, sigY + 5);
+  doc.font('Helvetica').text(`Name: ${appLeave.employeeName}`, tableStartX + 5, sigY + 25);
+  doc.font('Helvetica-Bold').text('Recommended By', tableStartX + sW + 5, sigY + 5);
+  doc.font('Helvetica').text('Name:', tableStartX + sW + 5, sigY + 25);
+  doc.text('Designation:', tableStartX + sW + 5, sigY + 35);
+  doc.text('Signature:', tableStartX + sW + 5, sigY + 45);
+  doc.font('Helvetica-Bold').text('Approved By', tableStartX + sW * 2 + 5, sigY + 5);
+  doc.font('Helvetica').text('Name:', tableStartX + sW * 2 + 5, sigY + 25);
+  doc.text('Designation:', tableStartX + sW * 2 + 5, sigY + 35);
+  doc.text('Signature:', tableStartX + sW * 2 + 5, sigY + 45);
+
+  doc.end();
+});
+
+// ==========================================
+// SERVER START
+// ==========================================
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 app.listen(PORT, () => { console.log(`✅ Server running: http://localhost:${PORT}`); });
